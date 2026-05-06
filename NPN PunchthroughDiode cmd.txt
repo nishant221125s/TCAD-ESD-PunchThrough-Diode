@@ -1,0 +1,104 @@
+; ........................... Low Capacitance ESD Protection Device ......................................
+;--------------------------------------------------------------------------------------------------------
+
+; Reinitializing
+(sde:clear)
+; set coordinate system up direction
+(sde:set-process-up-direction "+z")
+; Selecting default Boolean expression
+(sdegeo:set-default-boolean "ABA")
+
+;--------------------------------------------------------------------------------------------------------
+; ................................ ESD Device Parameters ................................................
+;--------------------------------------------------------------------------------------------------------
+
+(define N_doping_1  @Nd1@)
+(define P_Doping  @Na@)
+(define N_doping_2  @Nd2@)
+     
+                             
+(define T1    @T_N1@)     ; Y-AXIS  --> Thicknss of the N-Type        
+(define T2    @T_P@)      ; Y-AXIS  --> Thicknss of the P-Type
+(define T3    @T_N2@)     ; Y-AXIS  --> Thicknss of the N-Type
+
+(define Y1 0.0)               ; Y-AXIS 
+(define Y2 (+ Y1 T1))         ; Y-AXIS
+(define Y3 (+ Y2 T2))         ; Y-AXIS
+(define Y4 (+ Y3 T3))         ; Y-AXIS
+
+(define L1     @Length@)     ; X-AXIS --> Length of the npn diode 
+
+(define X1 0.0)               ; X-AXIS
+(define X2 (+ X1 L1))         ; X-AXIS
+
+;--------------------------------------------------------------------------------------------------------
+; ......................................... STRUCTURE ...................................................
+;--------------------------------------------------------------------------------------------------------
+
+; Creating rectangular regions
+
+(sdegeo:create-rectangle
+(position X1 Y3 0.0) (position X2 Y4 0.0)
+"Silicon" "R.PSUB" )
+
+(sdegeo:create-rectangle
+(position X1 Y2 0.0) (position X2 Y3 0.0)
+"Silicon" "R.PEPI" )
+
+(sdegeo:create-rectangle
+(position X1 Y1 0.0) (position X2 Y2 0.0)
+"Silicon" "R.Nplus" )
+
+;--------------------------------------------------------------------------------------------------------
+; ......................................... CONTACTS  ...................................................
+;--------------------------------------------------------------------------------------------------------
+
+(define C1 (* 0.5 L1))
+
+; Defining contacts  
+(sdegeo:set-contact (find-edge-id (position C1   Y1  0.0))  "anode")
+(sdegeo:set-contact (find-edge-id (position C1   Y4  0.0))  "cathode")
+
+
+;--------------------------------------------------------------------------------------------------------
+; .................. Specification of doping profiles to be inluded during meshing ......................
+;--------------------------------------------------------------------------------------------------------
+
+
+; Defining constant doping levels in a region
+(sdedr:define-constant-profile "Const.PSUB" "ArsenicActiveConcentration" @Nd1@)
+(sdedr:define-constant-profile-region "PlaceCD.PSUB" "Const.PSUB" "R.PSUB")
+
+; Defining constant doping levels in a region
+(sdedr:define-constant-profile "Const.PEPI" "BoronActiveConcentration" @Na@)
+(sdedr:define-constant-profile-region "PlaceCD.PEPI" "Const.PEPI" "R.PEPI")
+
+; Defining constant doping levels in a region
+(sdedr:define-constant-profile "Const.Nplus" "ArsenicActiveConcentration" @Nd2@)
+(sdedr:define-constant-profile-region "PlaceCD.Nplus" "Const.Nplus" "R.Nplus")
+
+
+;--------------------------------------------------------------------------------------------------------
+; .................................  Specify mesh refinements  .........................................
+;--------------------------------------------------------------------------------------------------------
+
+; Defining the global refinement window
+;--- AllMesh ---
+
+(sdedr:define-refeval-window "RefEvalWin_all" "Cuboid" (position X1 Y1 0.0) (position X2 Y4 0.0))
+(sdedr:define-refinement-size "RefinementDefinition_1" 2 2 2 1 1 1 )
+
+(define delta 0.5)
+
+(define Yp_start (- Y2 delta))
+(define Yp_end (+ Y2 delta))
+
+(sdedr:define-refeval-window "RefWin.Pregion"
+"Rectangle" (position X1 Yp_start 0.0) (position X2 Yp_end 0.0))
+(sdedr:define-refinement-size "RefDef.Pregion" 0.02 0.02 0.02 0.02)
+(sdedr:define-refinement-placement "PlaceRF.Pregion" "RefDef.Pregion" "RefWin.Pregion")
+(sdedr:define-refinement-function "RefDef.Pregion"
+"DopingConcentration" "MaxTransDiff" 0.05)
+
+; Meshing the device structure
+(sde:build-mesh "n@node@")

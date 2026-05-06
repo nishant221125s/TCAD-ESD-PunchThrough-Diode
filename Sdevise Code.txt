@@ -1,0 +1,170 @@
+This file is device simulation command file.
+It has many sections
+This is a comment
+
+
+Input Output file section *
+
+File{
+        Grid      = "@tdr@"        * input mesh file
+    Plot      = "n@node@_des.tdr"    * output device tdr
+#       Parameter = "@parameter@"       * input material par file
+        Current   = "n@node@_des.plt"    * output current plt
+        Output    = "@log@"        * output log file
+
+}
+
+The input mesh file name should match the mesh file output of SDE.
+
+
+Electrode (Contacts) Section *
+
+Electrode{
+   { Name="Input Terminal"    Voltage = 0.0 }    * initial condition on electrodes (contacts)
+   { Name="Output Terminal"    Voltage = 0.0 }        * prefer equilibrium
+}
+
+The name of the contacts should match with those defined in SDE command file.
+
+Thermode{
+{Name = "Input Terminal"  Temperature = 300 SurfaceConductance = 0.1}
+{Name = "Output Terminal" Temperature = 300 SurfaceConductance = 0.01}
+}
+
+Physics {
+Fermi
+Mobility (DopingDependence HighFieldSat Enormal)
+EffectiveIntrinsicDensity (BandGapNarrowing (OldSlotboom))
+Recombination(
+Auger
+Band2Band
+SRH(DopingDependence TempDependence)
+Avalanche(UniBo2 ))
+}
+
+
+The format is "Keyword(Options)"
+
+
+The output device tdr file will save these *
+keywords properties mentioned in Plot section *
+
+
+Plot{
+*--Density and Currents, etc
+   eDensity hDensity
+   TotalCurrent/Vector eCurrent/Vector hCurrent/Vector
+   eMobility hMobility
+   eVelocity hVelocity
+   eQuasiFermi hQuasiFermi
+
+*--Temperature 
+   eTemperature Temperature hTemperature
+
+*--Fields and charges
+   ElectricField/Vector Potential SpaceCharge
+
+*--Doping Profiles
+   Doping DonorConcentration AcceptorConcentration
+
+*--Generation/Recombination
+   SRH Band2Band Auger
+   AvalancheGeneration eAvalancheGeneration hAvalancheGeneration
+
+*--Driving forces
+   eGradQuasiFermi/Vector hGradQuasiFermi/Vector
+   eEparallel hEparallel eENormal hENormal
+
+   
+*--Band structure/Composition
+   BandGap 
+   BandGapNarrowing
+   Affinity
+   ConductionBand ValenceBand
+   eQuantumPotential hQuantumPotential
+   
+*--Stress related data
+   StressXX StressYY StressZZ
+   StressXY StressXZ StressYZ
+}
+
+Some of these would not make sense without solving for them by activating
+the concerned physical models in the Physics section
+
+
+The maths of the numerical solvers - not changed usually *
+
+
+Math {
+AcceptNewtonParameter (
+RhsMin = 1.e-5 
+)
+}
+
+Math {
+  NumberOfThreads= 16
+ *BreakCriteria{LatticeTemperature (Maxval = 1600)}
+  Extrapolate
+  Derivatives
+  Avalderivatives
+  RelErrControl
+  Digits= 5 *(for precision)
+  ErRef(electron)= 1.e8
+  ErRef(hole)= 1.e8
+  Notdamped= 50
+  Iterations= 130
+  Directcurrent
+  Wallclock
+  CNormPrint
+  NoSRHperPotential
+ -CheckUndefinedModels
+  Method = ParDiSo
+    
+
+    *Transient= BE
+
+   eMobilityAveraging= ElementEdge
+   * uses edge mobility instead of element one for electron mobility    
+   hMobilityAveraging= ElementEdge   
+   * uses edge mobility instead of element one for hole mobility
+   GeometricDistances                  
+   * when needed, compute distance to the interface instead of closest point on the interface
+   ParameterInheritance= Flatten       
+   * regions inherit parameters from materials  
+}
+
+For first time users, do not change the Maths section
+
+
+Solve section specifies the sweeps and the equations to solve
+
+Solve{
+      
+      Coupled (iterations=100) { Poisson }
+    Coupled (iterations=1000 LineSearchDamping=0.0001) { Poisson eQuantumPotential }
+      Coupled (Iterations = 100 LineSearchDamping = 1e-4){ Poisson }
+        Coupled (Iterations = 100 LineSearchDamping = 1e-4){ Poisson Electron }
+    Coupled (Iterations = 100 LineSearchDamping = 1e-4){ Poisson Hole }
+    Coupled (Iterations = 100){ Poisson Electron Hole }
+    
+        Quasistationary(InitialStep = 1e-6 MaxStep = 0.01 MinStep = 1e-15
+                        Goal {name= "Input Terminal" voltage = @V_start@}
+                        plot { range= (0,1) intervals = 10 }
+                        Extrapolate )
+        { Coupled{ Poisson Electron Hole} }
+ 
+       
+        Quasistationary (InitialStep = 1e-6 MaxStep = 0.01 MinStep = 1e-15
+                        Goal {name= "Input Terminal" voltage = 0}
+                        Extrapolate)
+        { Coupled{ Poisson Electron Hole} }
+
+       
+        Quasistationary (InitialStep = 1e-6 MaxStep = 0.01 MinStep = 1e-15
+                        Goal {name= "Input Terminal" voltage = @V_stop@}
+                        plot { range= (0,1) intervals = 10 } Extrapolate )
+        { Coupled{ Poisson Electron Hole} }
+        
+    
+     
+}
